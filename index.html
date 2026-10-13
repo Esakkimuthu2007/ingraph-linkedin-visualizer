@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>inGraph - LinkedIn Social Graph & Connection Recommender</title>
+  <!-- Tailwind CSS via Google CDN -->
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #0b1120;
+      color: #f1f5f9;
+      overflow-x: hidden;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* LinkedIn + Blue + Pink + Yellow Theme Palette */
+    :root {
+      --theme-blue: #0a66c2;
+      --theme-blue-glow: rgba(10, 102, 194, 0.45);
+      --theme-pink: #ec4899;
+      --theme-pink-glow: rgba(236, 72, 153, 0.45);
+      --theme-yellow: #facc15;
+      --theme-yellow-glow: rgba(250, 204, 21, 0.45);
+    }
+
+    .glow-blue {
+      box-shadow: 0 0 20px -3px var(--theme-blue-glow);
+    }
+    .glow-pink {
+      box-shadow: 0 0 20px -3px var(--theme-pink-glow);
+    }
+    .glow-yellow {
+      box-shadow: 0 0 20px -3px var(--theme-yellow-glow);
+    }
+
+    .glass-panel {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-input {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .glass-input:focus {
+      border-color: #0a66c2;
+      box-shadow: 0 0 10px rgba(10, 102, 194, 0.35);
+      outline: none;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b1120;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #0a66c2;
+    }
+
+    /* Pulse animations */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 0.3; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulse-ring {
+      animation: pulse-ring 2.5s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#0b1120] text-slate-100 antialiased selection:bg-pink-500 selection:text-white">
+
+  <!-- =================================================================== -->
+  <!-- 1. LINKEDIN-STYLE TOP NAVIGATION BAR                               -->
+  <!-- =================================================================== -->
+  <header class="border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
+      
+      <!-- Logo & Brand -->
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-[#0a66c2] flex items-center justify-center font-extrabold text-white text-xl shadow-md shadow-[#0a66c2]/40 tracking-tighter">
+          in
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
+              <span>Graph</span>
+              <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/30">
+                PRO NETWORK
+              </span>
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-yellow-400 inline-block pulse-ring"></span>
+            Graph Adjacency Engine: <span class="text-yellow-400 font-semibold">1st & 2nd Degree FoF Active</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Quick Legend (Blue = 1st Deg, Pink = 2nd Deg FoF, Yellow = Selected) -->
+      <div class="hidden md:flex items-center gap-4 bg-slate-900/80 px-4 py-1.5 rounded-xl border border-slate-800 text-xs">
+        <div class="flex items-center gap-1.5">
+          <span class="w-3 h-3 rounded-full bg-yellow-400 shadow-sm shadow-yellow-400/50"></span>
+          <span class="text-yellow-300 font-semibold">Active You</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-3 h-3 rounded-full bg-[#0a66c2] shadow-sm shadow-blue-500/50"></span>
+          <span class="text-blue-400 font-semibold">1st Degree (Direct)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-3 h-3 rounded-full bg-pink-500 shadow-sm shadow-pink-500/50"></span>
+          <span class="text-pink-400 font-semibold">2nd Degree (FoF Recommendation)</span>
+        </div>
+      </div>
+
+      <!-- Global Actions -->
+      <div class="flex items-center gap-2">
+        <button onclick="resetDefaultGraph()" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+          ↺ Reset Network
+        </button>
+        <a href="#codeSection" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-sm transition">
+          C++ Source & Report
+        </a>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- =================================================================== -->
+  <!-- 2. MAIN 3-COLUMN LINKEDIN WORKSPACE LAYOUT                          -->
+  <!-- =================================================================== -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- =============================================================== -->
+      <!-- LEFT COLUMN (3 Cols): CURRENT PROFILE & DIRECT NODE CONTROLS   -->
+      <!-- =============================================================== -->
+      <div class="lg:col-span-3 space-y-5">
+        
+        <!-- Profile Card (Active Member) -->
+        <div class="glass-panel rounded-2xl overflow-hidden border border-slate-800 shadow-xl relative">
+          <!-- Banner Image (Blue + Pink + Yellow Gradient) -->
+          <div class="h-16 bg-gradient-to-r from-[#0a66c2] via-pink-600 to-yellow-500 relative">
+            <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/40 text-yellow-300 backdrop-blur-sm">
+              ACTIVE NODE
+            </span>
+          </div>
+
+          <div class="p-4 pt-0 relative">
+            <!-- Avatar with Yellow Glow -->
+            <div class="w-14 h-14 -mt-7 rounded-full bg-slate-900 border-2 border-yellow-400 flex items-center justify-center text-xl font-extrabold text-yellow-400 shadow-lg shadow-yellow-500/20 glow-yellow mb-2">
+              <span id="profAvatar">A</span>
+            </div>
+
+            <!-- Profile Info -->
+            <div class="flex items-start justify-between">
+              <div>
+                <h2 id="profName" class="text-lg font-bold text-white flex items-center gap-1.5">
+                  Alice
+                  <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                </h2>
+                <p id="profRole" class="text-xs text-slate-300 font-medium">Data Scientist</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">LinkedIn Graph Community</p>
+              </div>
+            </div>
+
+            <!-- Active User Switcher -->
+            <div class="mt-3 pt-3 border-t border-slate-800">
+              <label class="text-[11px] font-semibold text-slate-400 block mb-1">Switch Active Profile (You):</label>
+              <select id="selProfileSwitch" onchange="setActiveProfile(this.value)" class="w-full glass-input rounded-xl px-2.5 py-1.5 text-xs text-yellow-300 font-semibold">
+                <!-- Injected via JS -->
+              </select>
+            </div>
+
+            <!-- Connection Metrics (Degrees) -->
+            <div class="mt-4 grid grid-cols-2 gap-2 text-center pt-3 border-t border-slate-800">
+              <div class="p-2 rounded-xl bg-slate-900/80 border border-blue-500/30">
+                <div id="profDegreeCount" class="text-lg font-extrabold text-blue-400">2</div>
+                <div class="text-[10px] text-slate-400 uppercase font-semibold">1st Degree</div>
+              </div>
+              <div class="p-2 rounded-xl bg-slate-900/80 border border-pink-500/30">
+                <div id="profRecCount" class="text-lg font-extrabold text-pink-400">2</div>
+                <div class="text-[10px] text-slate-400 uppercase font-semibold">2nd Deg (FoF)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Direct Node Manager: Connect & Remove Connection -->
+        <div class="glass-panel rounded-2xl p-4 border border-slate-800 space-y-4 shadow-xl">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-yellow-400 flex items-center gap-1.5">
+              <span>⚡</span> Manage Connections
+            </h3>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
+              Graph Edges
+            </span>
+          </div>
+
+          <!-- Quick Connect / Disconnect Pair -->
+          <div class="space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[10px] text-slate-400 block mb-1">Member 1:</label>
+                <select id="selEdgeMemberA" class="w-full glass-input rounded-xl px-2 py-1.5 text-xs text-white"></select>
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-400 block mb-1">Member 2:</label>
+                <select id="selEdgeMemberB" class="w-full glass-input rounded-xl px-2 py-1.5 text-xs text-white"></select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <!-- Connect Button (Blue) -->
+              <button onclick="handleConnectEdge()" class="w-full py-2 px-3 rounded-xl bg-[#0a66c2] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                Connect
+              </button>
+              <!-- Remove Connection Button (Pink / Red) -->
+              <button onclick="handleRemoveEdge()" class="w-full py-2 px-3 rounded-xl bg-pink-600/80 hover:bg-pink-600 text-white font-bold text-xs shadow-md shadow-pink-500/20 transition flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                Remove
+              </button>
+            </div>
+            <div id="edgeActionMsg" class="text-[11px] font-mono text-center pt-1 min-h-[18px]"></div>
+          </div>
+
+          <!-- Add New Member or Remove Member -->
+          <div class="pt-3 border-t border-slate-800 space-y-2">
+            <span class="text-[11px] font-semibold text-slate-300 block">Add New Member to Graph:</span>
+            <div class="space-y-1.5">
+              <input type="text" id="inputNewName" placeholder="Name (e.g. Maya)" class="w-full glass-input rounded-xl px-2.5 py-1.5 text-xs text-white">
+              <input type="text" id="inputNewRole" placeholder="Role (e.g. Cloud Architect)" class="w-full glass-input rounded-xl px-2.5 py-1.5 text-xs text-white">
+              <button onclick="handleAddNewMember()" class="w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-yellow-300 border border-yellow-500/40 text-xs font-bold transition">
+                + Create Member Node
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- =============================================================== -->
+      <!-- CENTER COLUMN (6 Cols): INTERACTIVE NETWORK GRAPH CANVAS STUDIO -->
+      <!-- =============================================================== -->
+      <div class="lg:col-span-6 space-y-4">
+
+        <!-- Graph Studio Container -->
+        <div class="glass-panel rounded-2xl p-4 border border-slate-800 shadow-xl relative flex flex-col">
+          
+          <!-- Canvas Top Bar -->
+          <div class="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800 gap-2">
+            <div>
+              <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-400"></span>
+                LinkedIn Network Topology Studio
+              </h2>
+              <p class="text-[11px] text-slate-400">Click any member to see options or drag nodes to reposition</p>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <button onclick="realignGraph()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition">
+                ⚡ Auto-Layout
+              </button>
+            </div>
+          </div>
+
+          <!-- Interactive HTML5 Canvas -->
+          <div class="relative w-full h-[470px] bg-[#080d1a] rounded-xl overflow-hidden border border-slate-800 mt-3">
+            <canvas id="networkCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+            <!-- Interactive Click-to-Action Modal / Floating Card on Node Selection -->
+            <div id="nodeActionPopup" class="hidden absolute top-4 left-4 bg-slate-900/95 backdrop-blur-md rounded-2xl p-4 border border-slate-700 shadow-2xl z-20 max-w-[260px] text-xs">
+              <div class="flex items-start justify-between gap-2 pb-2 border-b border-slate-800">
+                <div>
+                  <h4 id="popupNodeName" class="font-bold text-sm text-white">Name</h4>
+                  <p id="popupNodeRole" class="text-[11px] text-slate-400">Role</p>
+                </div>
+                <button onclick="closeNodePopup()" class="text-slate-400 hover:text-white p-1">✕</button>
+              </div>
+
+              <!-- Relationship Badge -->
+              <div class="mt-2.5 mb-3">
+                <span id="popupRelBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono">
+                  1st Degree Connection
+                </span>
+                <p id="popupMutualText" class="text-[11px] text-slate-400 mt-1"></p>
+              </div>
+
+              <!-- Dynamic Action Buttons: Connect / Remove / Switch -->
+              <div class="space-y-1.5">
+                <button id="btnPopupConnectOrRemove" class="w-full py-1.5 px-3 rounded-xl font-bold text-xs text-white transition flex items-center justify-center gap-1.5">
+                  <!-- Populated by JS -->
+                </button>
+                <button id="btnPopupSwitchProfile" class="w-full py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-yellow-300 border border-yellow-500/30 text-[11px] font-semibold transition">
+                  Set as Active Profile
+                </button>
+                <button id="btnPopupDeleteUser" class="w-full py-1 px-3 rounded-xl bg-transparent hover:bg-red-950/40 text-red-400 text-[10px] transition">
+                  Delete Member
+                </button>
+              </div>
+            </div>
+
+            <!-- Canvas Legend / Selected User Info Badge -->
+            <div class="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-[11px] text-slate-300 pointer-events-none flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+              <span>Viewing from perspective of: <strong id="canvasViewerName" class="text-yellow-400">Alice</strong></span>
+            </div>
+          </div>
+
+          <!-- Bottom Live Statistics Bar -->
+          <div class="mt-3 p-3 bg-slate-900/70 rounded-xl border border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2">
+              <span class="text-slate-400">Direct (1st Degree):</span>
+              <span id="barDirectList" class="text-blue-400 font-mono font-semibold">[Bob, Charlie]</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-slate-400">Recommended (2nd Degree):</span>
+              <span id="barRecList" class="text-pink-400 font-mono font-bold">[David, Emma]</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Mutual Connections Analyzer Bar -->
+        <div class="glass-panel rounded-2xl p-4 border border-slate-800 space-y-3 shadow-xl">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-pink-400 flex items-center gap-1.5">
+              <span>🤝</span> Mutual Connections Finder (Set Intersection)
+            </h3>
+            <span class="text-[10px] font-mono text-slate-400">C++ set&lt;string&gt; f1</span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex-1 min-w-[130px]">
+              <label class="text-[10px] text-slate-400 block mb-0.5">Member 1:</label>
+              <select id="selMutualA" class="w-full glass-input rounded-xl px-2.5 py-1.5 text-xs text-white"></select>
+            </div>
+            <div class="flex-1 min-w-[130px]">
+              <label class="text-[10px] text-slate-400 block mb-0.5">Member 2:</label>
+              <select id="selMutualB" class="w-full glass-input rounded-xl px-2.5 py-1.5 text-xs text-white"></select>
+            </div>
+            <div class="pt-4">
+              <button onclick="computeMutualConnections()" class="py-1.5 px-4 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs shadow-md shadow-pink-500/20 transition">
+                Find Mutual
+              </button>
+            </div>
+          </div>
+
+          <div id="mutualResultDisplay" class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs">
+            Select any two members above to inspect common connections.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- =============================================================== -->
+      <!-- RIGHT COLUMN (3 Cols): "PEOPLE YOU MAY KNOW" & FEED            -->
+      <!-- =============================================================== -->
+      <div class="lg:col-span-3 space-y-5">
+
+        <!-- LinkedIn Style: "People You May Know" -->
+        <div class="glass-panel rounded-2xl p-4 border border-slate-800 shadow-xl space-y-3">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-pink-500 pulse-ring"></span>
+                People You May Know
+              </h3>
+              <p class="text-[10px] text-pink-400">2nd Degree Network Suggestions</p>
+            </div>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-pink-950 text-pink-300 border border-pink-800">
+              AI FoF
+            </span>
+          </div>
+
+          <!-- Dynamic Suggestion Cards -->
+          <div id="suggestionsList" class="space-y-3">
+            <!-- Dynamically populated via JS -->
+          </div>
+        </div>
+
+        <!-- 1st Degree Connections List (With Direct Remove Button!) -->
+        <div class="glass-panel rounded-2xl p-4 border border-slate-800 shadow-xl space-y-3">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                <span>👥</span> Your 1st Connections
+              </h3>
+              <p class="text-[10px] text-slate-400">Directly Connected in Network</p>
+            </div>
+            <span id="badge1stCount" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800">
+              2
+            </span>
+          </div>
+
+          <!-- Direct Connections List with 1-click Disconnect -->
+          <div id="directConnectionsList" class="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- Network Activity & Reasoning Terminal -->
+        <div class="glass-panel rounded-2xl p-4 border border-slate-800 shadow-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold text-yellow-400 flex items-center gap-1">
+              <span>⚡</span> Engine Activity Log
+            </span>
+            <span class="text-[10px] font-mono text-slate-500">Live</span>
+          </div>
+          <div id="activityLog" class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 h-[120px] overflow-y-auto space-y-1">
+            <div class="text-blue-400">> LinkedIn Network Graph initialized.</div>
+            <div class="text-pink-400">> 2nd Degree FoF recommendation engine active.</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- 3. C++ SOURCE CODE & ALGORITHM EXPLAINER (LAB REPORT READY)         -->
+    <!-- =================================================================== -->
+    <div id="codeSection" class="mt-8 glass-panel rounded-2xl p-6 border border-slate-800 shadow-2xl space-y-6">
+      
+      <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-blue-950 text-blue-400 rounded-md text-xs font-mono border border-blue-800">C++ Source</span>
+            Graph Adjacency List Algorithm & Report Data
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">
+            Every button and action in this interface directly executes the C++ algorithm logic below.
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-mono px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg text-yellow-300">
+            Adjacency: map&lt;string, vector&lt;string&gt;&gt;
+          </span>
+          <span class="text-xs font-mono px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg text-pink-300">
+            Lookup: set&lt;string&gt;
+          </span>
+        </div>
+      </div>
+
+      <!-- 3 Key Features Code Breakdown -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+        
+        <!-- 1. Add / Remove Edge -->
+        <div class="p-4 rounded-xl bg-slate-950/90 border border-blue-500/30 space-y-2">
+          <div class="flex items-center justify-between text-blue-400 font-bold">
+            <span>Connect & Remove</span>
+            <span class="font-mono text-[10px]">O(deg(u))</span>
+          </div>
+          <div class="bg-slate-900 p-3 rounded-lg font-mono text-[11px] text-slate-300 border border-slate-800">
+            <span class="text-slate-400">// Connect:</span><br>
+            adj[u].push_back(v);<br>
+            adj[v].push_back(u);<br><br>
+            <span class="text-slate-400">// Remove:</span><br>
+            adj[u].erase(find(adj[u].begin(), adj[u].end(), v));<br>
+            adj[v].erase(find(adj[v].begin(), adj[v].end(), u));
+          </div>
+          <p class="text-slate-400">
+            <strong>LinkedIn Logic:</strong> Adding or withdrawing a 1st degree connection modifies the undirected adjacency list.
+          </p>
+        </div>
+
+        <!-- 2. Mutual Connections -->
+        <div class="p-4 rounded-xl bg-slate-950/90 border border-pink-500/30 space-y-2">
+          <div class="flex items-center justify-between text-pink-400 font-bold">
+            <span>Mutual Connections</span>
+            <span class="font-mono text-[10px]">Set Intersection</span>
+          </div>
+          <div class="bg-slate-900 p-3 rounded-lg font-mono text-[11px] text-slate-300 border border-slate-800">
+            set&lt;string&gt; f1(adj[u].begin(), adj[u].end());<br>
+            <span class="text-pink-400">for</span> (string f : adj[v]) {<br>
+            &nbsp;&nbsp;<span class="text-pink-400">if</span> (f1.count(f)) mutuals.push_back(f);<br>
+            }
+          </div>
+          <p class="text-slate-400">
+            <strong>LinkedIn Logic:</strong> "You both know Bob and Charlie". Finds the intersection of two connection sets.
+          </p>
+        </div>
+
+        <!-- 3. People You May Know (FoF) -->
+        <div class="p-4 rounded-xl bg-slate-950/90 border border-yellow-500/30 space-y-2">
+          <div class="flex items-center justify-between text-yellow-400 font-bold">
+            <span>2nd Degree FoF Suggestions</span>
+            <span class="font-mono text-[10px]">2-Hop BFS</span>
+          </div>
+          <div class="bg-slate-900 p-3 rounded-lg font-mono text-[11px] text-slate-300 border border-slate-800">
+            <span class="text-yellow-400">for</span> (string fr : adj[u]) {<br>
+            &nbsp;&nbsp;<span class="text-yellow-400">for</span> (string fof : adj[fr]) {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-yellow-400">if</span> (fof != u && !direct.count(fof))<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;suggestions[fof]++;<br>
+            &nbsp;&nbsp;}<br>
+            }
+          </div>
+          <p class="text-slate-400">
+            <strong>LinkedIn Logic:</strong> Traverses connections of connections. Ranks candidates by number of mutual connections.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Live Dynamic Adjacency Memory Dump -->
+      <div class="p-4 rounded-xl bg-slate-950 border border-slate-800">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-yellow-300 font-mono">
+            LIVE MEMORY DUMP: map&lt;string, vector&lt;string&gt;&gt; adj
+          </span>
+          <span class="text-[11px] text-slate-400">Updates dynamically on connect/remove</span>
+        </div>
+        <pre id="memoryDump" class="bg-slate-900/90 p-3 rounded-xl font-mono text-xs text-blue-300 overflow-x-auto border border-slate-800"></pre>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- =================================================================== -->
+  <!-- 4. JAVASCRIPT: GRAPH ENGINE & DIRECT INTERACTION CONTROLS           -->
+  <!-- =================================================================== -->
+  <script>
+    // -----------------------------------------------------------------
+    // Graph Data Structure Class (Mirrors C++ SocialGraph)
+    // -----------------------------------------------------------------
+    class SocialGraph {
+      constructor() {
+        this.adj = new Map();
+        this.roles = new Map();
+      }
+
+      addUser(name, role = "Member") {
+        if (!this.adj.has(name)) {
+          this.adj.set(name, []);
+        }
+        this.roles.set(name, role);
+      }
+
+      addFriendship(u, v) {
+        if (u === v) return false;
+        if (!this.adj.has(u)) this.addUser(u, "Member");
+        if (!this.adj.has(v)) this.addUser(v, "Member");
+
+        const listU = this.adj.get(u);
+        const listV = this.adj.get(v);
+
+        if (!listU.includes(v)) listU.push(v);
+        if (!listV.includes(u)) listV.push(u);
+        return true;
+      }
+
+      removeFriendship(u, v) {
+        if (!this.adj.has(u) || !this.adj.has(v)) return false;
+        const listU = this.adj.get(u);
+        const listV = this.adj.get(v);
+
+        const idxU = listU.indexOf(v);
+        if (idxU !== -1) listU.splice(idxU, 1);
+
+        const idxV = listV.indexOf(u);
+        if (idxV !== -1) listV.splice(idxV, 1);
+        return true;
+      }
+
+      removeUser(u) {
+        if (!this.adj.has(u)) return false;
+        // remove u from all neighbors
+        for (const neighbor of this.adj.get(u)) {
+          const listN = this.adj.get(neighbor);
+          const idx = listN.indexOf(u);
+          if (idx !== -1) listN.splice(idx, 1);
+        }
+        this.adj.delete(u);
+        this.roles.delete(u);
+        return true;
+      }
+
+      getUsers() {
+        return Array.from(this.adj.keys());
+      }
+
+      getRole(u) {
+        return this.roles.get(u) || "Professional";
+      }
+
+      getFriends(u) {
+        return this.adj.has(u) ? this.adj.get(u) : [];
+      }
+
+      getDegree(u) {
+        return this.adj.has(u) ? this.adj.get(u).length : 0;
+      }
+
+      isConnected(u, v) {
+        if (!this.adj.has(u) || !this.adj.has(v)) return false;
+        return this.adj.get(u).includes(v);
+      }
+
+      findMutualFriends(u, v) {
+        if (!this.adj.has(u) || !this.adj.has(v)) return [];
+        const f1 = new Set(this.adj.get(u));
+        const mutuals = [];
+        for (const f of this.adj.get(v)) {
+          if (f1.has(f)) mutuals.push(f);
+        }
+        return mutuals;
+      }
+
+      recommendFriends(u) {
+        if (!this.adj.has(u)) return [];
+        const directFriends = new Set(this.adj.get(u));
+        const suggestionsMap = new Map();
+
+        for (const fr of this.adj.get(u)) {
+          for (const fof of this.adj.get(fr)) {
+            if (fof !== u && !directFriends.has(fof)) {
+              const current = suggestionsMap.get(fof) || { name: fof, mutuals: [], score: 0 };
+              if (!current.mutuals.includes(fr)) {
+                current.mutuals.push(fr);
+              }
+              current.score = Math.min(99, Math.round((current.mutuals.length / Math.max(1, directFriends.size)) * 80 + 20));
+              suggestionsMap.set(fof, current);
+            }
+          }
+        }
+        return Array.from(suggestionsMap.values()).sort((a, b) => b.mutuals.length - a.mutuals.length);
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // Global State & Initialization
+    // -----------------------------------------------------------------
+    const network = new SocialGraph();
+    let activeProfile = "Alice";
+    let popupSelectedUser = null;
+
+    function initDefaultData() {
+      network.adj.clear();
+      network.roles.clear();
+
+      network.addUser("Alice", "Data Scientist");
+      network.addUser("Bob", "AI Engineer");
+      network.addUser("Charlie", "Full Stack Dev");
+      network.addUser("David", "ML Researcher");
+      network.addUser("Emma", "Lead Product Manager");
+
+      network.addFriendship("Alice", "Bob");
+      network.addFriendship("Alice", "Charlie");
+      network.addFriendship("Bob", "David");
+      network.addFriendship("Bob", "Emma");
+      network.addFriendship("Charlie", "David");
+    }
+
+    initDefaultData();
+
+    // -----------------------------------------------------------------
+    // UI Updates
+    // -----------------------------------------------------------------
+    function refreshUI() {
+      updateProfileCard();
+      populateSelectDropdowns();
+      updateSuggestionsList();
+      updateDirectConnectionsList();
+      updateMemoryDump();
+      drawGraph();
+    }
+
+    function updateProfileCard() {
+      if (!network.adj.has(activeProfile)) {
+        const users = network.getUsers();
+        activeProfile = users.length ? users[0] : "Alice";
+      }
+
+      document.getElementById('profName').innerText = activeProfile;
+      document.getElementById('profRole').innerText = network.getRole(activeProfile);
+      document.getElementById('profAvatar').innerText = activeProfile.charAt(0);
+      document.getElementById('canvasViewerName').innerText = activeProfile;
+
+      const degree = network.getDegree(activeProfile);
+      document.getElementById('profDegreeCount').innerText = degree;
+      document.getElementById('badge1stCount').innerText = degree;
+
+      const recs = network.recommendFriends(activeProfile);
+      document.getElementById('profRecCount').innerText = recs.length;
+
+      // Top bar lists
+      const direct = network.getFriends(activeProfile);
+      document.getElementById('barDirectList').innerText = direct.length ? `[${direct.join(', ')}]` : "[]";
+      document.getElementById('barRecList').innerText = recs.length ? `[${recs.map(r => r.name).join(', ')}]` : "None";
+    }
+
+    function populateSelectDropdowns() {
+      const users = network.getUsers();
+      const selectors = ['selProfileSwitch', 'selEdgeMemberA', 'selEdgeMemberB', 'selMutualA', 'selMutualB'];
+
+      selectors.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const currentVal = el.value;
+        el.innerHTML = '';
+        users.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u;
+          opt.innerText = `${u} (${network.getRole(u)})`;
+          if (id === 'selProfileSwitch' && u === activeProfile) opt.selected = true;
+          else if (id === 'selEdgeMemberA' && u === (currentVal || 'Alice')) opt.selected = true;
+          else if (id === 'selEdgeMemberB' && u === (currentVal || 'David')) opt.selected = true;
+          else if (id === 'selMutualA' && u === (currentVal || 'Alice')) opt.selected = true;
+          else if (id === 'selMutualB' && u === (currentVal || 'David')) opt.selected = true;
+          el.appendChild(opt);
+        });
+      });
+    }
+
+    function updateSuggestionsList() {
+      const recs = network.recommendFriends(activeProfile);
+      const container = document.getElementById('suggestionsList');
+
+      if (recs.length === 0) {
+        container.innerHTML = `
+          <div class="text-[11px] text-slate-400 p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-center">
+            No 2nd degree recommendations available for ${activeProfile}. Try adding more connections!
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = recs.map(rec => `
+        <div class="p-3 rounded-xl bg-slate-900/80 border border-pink-500/30 hover:border-pink-500 transition space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center font-bold text-xs text-white shadow glow-pink">
+                ${rec.name.charAt(0)}
+              </div>
+              <div>
+                <h4 class="font-bold text-xs text-white flex items-center gap-1">
+                  ${rec.name}
+                  <span class="text-[9px] px-1 rounded bg-pink-950 text-pink-300 font-mono">2nd</span>
+                </h4>
+                <p class="text-[10px] text-slate-400">${network.getRole(rec.name)}</p>
+              </div>
+            </div>
+            <span class="text-[10px] font-mono text-yellow-400 font-bold">${rec.score}% match</span>
+          </div>
+
+          <div class="text-[10px] text-slate-400 flex items-center gap-1">
+            <span class="text-pink-400 font-semibold">🔗 Mutuals:</span>
+            <span class="text-slate-300 font-mono">${rec.mutuals.join(', ')}</span>
+          </div>
+
+          <button onclick="directConnect('${activeProfile}', '${rec.name}')" class="w-full py-1.5 rounded-lg bg-[#0a66c2] hover:bg-blue-600 text-white font-bold text-xs shadow transition flex items-center justify-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Connect (Add 1st Degree)
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function updateDirectConnectionsList() {
+      const friends = network.getFriends(activeProfile);
+      const container = document.getElementById('directConnectionsList');
+
+      if (friends.length === 0) {
+        container.innerHTML = `<div class="text-[11px] text-slate-400 text-center py-2">No 1st degree connections yet.</div>`;
+        return;
+      }
+
+      container.innerHTML = friends.map(f => `
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs hover:border-blue-500/40 transition">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-full bg-[#0a66c2]/30 text-blue-300 border border-blue-500/50 flex items-center justify-center font-bold text-xs">
+              ${f.charAt(0)}
+            </div>
+            <div>
+              <div class="font-bold text-white text-xs">${f}</div>
+              <div class="text-[10px] text-slate-400">${network.getRole(f)}</div>
+            </div>
+          </div>
+          <!-- 1-Click Disconnect Button (Pink/Red) -->
+          <button onclick="directDisconnect('${activeProfile}', '${f}')" title="Remove Connection" class="px-2 py-1 rounded-lg bg-pink-950/60 hover:bg-pink-700 text-pink-300 hover:text-white border border-pink-800/60 text-[10px] font-bold transition flex items-center gap-1">
+            ✕ Remove
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function updateMemoryDump() {
+      const el = document.getElementById('memoryDump');
+      if (!el) return;
+      let text = `// C++ Adjacency List (Active State)\nmap<string, vector<string>> adj = {\n`;
+      for (const [user, friends] of network.adj.entries()) {
+        text += `  { "${user}", { ${friends.map(f => `"${f}"`).join(', ')} } },  // Degree: ${friends.length}\n`;
+      }
+      text += `};\n`;
+      el.innerText = text;
+    }
+
+    function logActivity(text) {
+      const el = document.getElementById('activityLog');
+      if (!el) return;
+      const item = document.createElement('div');
+      item.innerHTML = `<span class="text-yellow-400">></span> ${text}`;
+      el.prepend(item);
+    }
+
+    // -----------------------------------------------------------------
+    // Actions: Connect, Disconnect, Add Member, Delete Member
+    // -----------------------------------------------------------------
+    function directConnect(u1, u2) {
+      network.addFriendship(u1, u2);
+      logActivity(`Connected: <span class="text-blue-400 font-bold">${u1}</span> ⟷ <span class="text-blue-400 font-bold">${u2}</span>`);
+      refreshUI();
+      closeNodePopup();
+    }
+
+    function directDisconnect(u1, u2) {
+      network.removeFriendship(u1, u2);
+      logActivity(`Disconnected: <span class="text-pink-400 font-bold">${u1}</span> ✕ <span class="text-pink-400 font-bold">${u2}</span>`);
+      refreshUI();
+      closeNodePopup();
+    }
+
+    function handleConnectEdge() {
+      const u1 = document.getElementById('selEdgeMemberA').value;
+      const u2 = document.getElementById('selEdgeMemberB').value;
+      const msg = document.getElementById('edgeActionMsg');
+
+      if (u1 === u2) {
+        msg.innerHTML = `<span class="text-yellow-400">⚠️ Cannot connect member to themselves</span>`;
+        return;
+      }
+      if (network.isConnected(u1, u2)) {
+        msg.innerHTML = `<span class="text-blue-400">ℹ️ Already connected as 1st degree</span>`;
+        return;
+      }
+
+      directConnect(u1, u2);
+      msg.innerHTML = `<span class="text-emerald-400">✓ Connected ${u1} & ${u2}!</span>`;
+    }
+
+    function handleRemoveEdge() {
+      const u1 = document.getElementById('selEdgeMemberA').value;
+      const u2 = document.getElementById('selEdgeMemberB').value;
+      const msg = document.getElementById('edgeActionMsg');
+
+      if (u1 === u2) {
+        msg.innerHTML = `<span class="text-yellow-400">⚠️ Select two distinct members</span>`;
+        return;
+      }
+      if (!network.isConnected(u1, u2)) {
+        msg.innerHTML = `<span class="text-pink-400">⚠️ They are not currently connected</span>`;
+        return;
+      }
+
+      directDisconnect(u1, u2);
+      msg.innerHTML = `<span class="text-pink-400">✓ Connection removed between ${u1} & ${u2}</span>`;
+    }
+
+    function handleAddNewMember() {
+      const name = document.getElementById('inputNewName').value.trim();
+      const role = document.getElementById('inputNewRole').value.trim() || "Professional";
+
+      if (!name) {
+        alert("Please enter a name for the new member.");
+        return;
+      }
+      if (network.adj.has(name)) {
+        alert("Member with this name already exists in network.");
+        return;
+      }
+
+      network.addUser(name, role);
+      // Automatically connect with active profile to welcome them
+      network.addFriendship(activeProfile, name);
+
+      logActivity(`Added new member: <span class="text-yellow-300 font-bold">${name}</span> (${role})`);
+      document.getElementById('inputNewName').value = '';
+      document.getElementById('inputNewRole').value = '';
+      realignGraph();
+      refreshUI();
+    }
+
+    function setActiveProfile(user) {
+      activeProfile = user;
+      logActivity(`Active Profile changed to: <span class="text-yellow-300 font-bold">${user}</span>`);
+      refreshUI();
+    }
+
+    function computeMutualConnections() {
+      const u1 = document.getElementById('selMutualA').value;
+      const u2 = document.getElementById('selMutualB').value;
+      const display = document.getElementById('mutualResultDisplay');
+
+      if (u1 === u2) {
+        display.innerHTML = `<span class="text-yellow-400">Please choose two different members to compare.</span>`;
+        return;
+      }
+
+      const mutuals = network.findMutualFriends(u1, u2);
+      if (mutuals.length === 0) {
+        display.innerHTML = `
+          <div class="text-slate-400">
+            <strong>${u1}</strong> & <strong>${u2}</strong> have <span class="text-pink-400 font-bold">0 mutual connections</span>.
+          </div>
+        `;
+      } else {
+        display.innerHTML = `
+          <div>
+            <div class="font-bold text-slate-200 mb-1">
+              Found <span class="text-pink-400">${mutuals.length}</span> mutual connection(s) between <span class="text-blue-400">${u1}</span> & <span class="text-yellow-400">${u2}</span>:
+            </div>
+            <div class="flex flex-wrap gap-1 mt-1">
+              ${mutuals.map(m => `<span class="px-2 py-0.5 rounded-md bg-pink-950 text-pink-300 border border-pink-800 font-mono text-[11px]">🔗 ${m}</span>`).join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function resetDefaultGraph() {
+      initDefaultData();
+      activeProfile = "Alice";
+      realignGraph();
+      refreshUI();
+      logActivity(`Network graph reset to default state.`);
+    }
+
+    // -----------------------------------------------------------------
+    // Node Click Modal Popup Handling
+    // -----------------------------------------------------------------
+    function openNodePopup(user, screenX, screenY) {
+      popupSelectedUser = user;
+      const popup = document.getElementById('nodeActionPopup');
+      document.getElementById('popupNodeName').innerText = user;
+      document.getElementById('popupNodeRole').innerText = network.getRole(user);
+
+      const relBadge = document.getElementById('popupRelBadge');
+      const mutualText = document.getElementById('popupMutualText');
+      const actionBtn = document.getElementById('btnPopupConnectOrRemove');
+      const switchBtn = document.getElementById('btnPopupSwitchProfile');
+      const deleteBtn = document.getElementById('btnPopupDeleteUser');
+
+      if (user === activeProfile) {
+        relBadge.innerText = "You (Active Profile)";
+        relBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-yellow-950 text-yellow-300 border border-yellow-700";
+        mutualText.innerText = "This is currently your viewpoint.";
+        actionBtn.className = "hidden";
+        switchBtn.className = "hidden";
+      } else {
+        switchBtn.className = "w-full py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-yellow-300 border border-yellow-500/30 text-[11px] font-semibold transition";
+        switchBtn.onclick = () => { setActiveProfile(user); closeNodePopup(); };
+
+        const isDirect = network.isConnected(activeProfile, user);
+        const mutuals = network.findMutualFriends(activeProfile, user);
+
+        if (isDirect) {
+          relBadge.innerText = "1st Degree Connection";
+          relBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-blue-950 text-blue-300 border border-blue-700";
+          mutualText.innerText = `Connected. Share ${mutuals.length} mutual connections.`;
+          
+          actionBtn.className = "w-full py-1.5 px-3 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-md shadow-pink-500/30";
+          actionBtn.innerHTML = `<span>✕ Remove Connection</span>`;
+          actionBtn.onclick = () => directDisconnect(activeProfile, user);
+        } else {
+          relBadge.innerText = mutuals.length > 0 ? "2nd Degree (FoF)" : "3rd+ Degree";
+          relBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-pink-950 text-pink-300 border border-pink-700";
+          mutualText.innerText = mutuals.length > 0 ? `Mutuals: ${mutuals.join(', ')}` : "No mutual connections yet.";
+
+          actionBtn.className = "w-full py-1.5 px-3 rounded-xl bg-[#0a66c2] hover:bg-blue-600 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/30";
+          actionBtn.innerHTML = `<span>➕ Connect (Add Edge)</span>`;
+          actionBtn.onclick = () => directConnect(activeProfile, user);
+        }
+      }
+
+      deleteBtn.onclick = () => {
+        if (confirm(`Remove ${user} and all their connections from the network?`)) {
+          network.removeUser(user);
+          logActivity(`Removed user: <span class="text-red-400 font-bold">${user}</span>`);
+          realignGraph();
+          refreshUI();
+          closeNodePopup();
+        }
+      };
+
+      popup.classList.remove('hidden');
+    }
+
+    function closeNodePopup() {
+      const popup = document.getElementById('nodeActionPopup');
+      popup.classList.add('hidden');
+      popupSelectedUser = null;
+    }
+
+    // -----------------------------------------------------------------
+    // Interactive HTML5 Canvas Graph Physics & Rendering
+    // -----------------------------------------------------------------
+    const canvas = document.getElementById('networkCanvas');
+    const ctx = canvas.getContext('2d');
+    let nodePositions = {};
+    let draggedNode = null;
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio || rect.width;
+      canvas.height = rect.height * window.devicePixelRatio || rect.height;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+
+    function realignGraph() {
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+      const users = network.getUsers();
+      const n = users.length;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const radius = Math.min(width, height) * 0.36;
+
+      users.forEach((u, idx) => {
+        const angle = (idx / n) * 2 * Math.PI - Math.PI / 2;
+        nodePositions[u] = {
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle),
+          radius: 25
+        };
+      });
+      drawGraph();
+    }
+
+    function drawGraph() {
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+      ctx.clearRect(0, 0, width, height);
+
+      const users = network.getUsers();
+      users.forEach((u, idx) => {
+        if (!nodePositions[u]) {
+          const angle = (idx / Math.max(1, users.length)) * 2 * Math.PI;
+          nodePositions[u] = {
+            x: width / 2 + 130 * Math.cos(angle),
+            y: height / 2 + 130 * Math.sin(angle),
+            radius: 25
+          };
+        }
+      });
+
+      const directFriends = new Set(network.getFriends(activeProfile));
+      const recs = network.recommendFriends(activeProfile);
+      const recNames = new Set(recs.map(r => r.name));
+
+      // 1. Draw Edges (Friendships)
+      const drawnPairs = new Set();
+      users.forEach(u => {
+        const friends = network.getFriends(u);
+        friends.forEach(v => {
+          const pairKey = [u, v].sort().join('--');
+          if (!drawnPairs.has(pairKey) && nodePositions[u] && nodePositions[v]) {
+            drawnPairs.add(pairKey);
+            const posU = nodePositions[u];
+            const posV = nodePositions[v];
+
+            const isConnectedToActive = (u === activeProfile || v === activeProfile);
+
+            ctx.beginPath();
+            ctx.moveTo(posU.x, posU.y);
+            ctx.lineTo(posV.x, posV.y);
+
+            if (isConnectedToActive) {
+              // 1st Degree Line: Vibrant Blue
+              ctx.strokeStyle = "#0a66c2";
+              ctx.lineWidth = 3.5;
+            } else {
+              // Other Connections: Subtle Slate Blue
+              ctx.strokeStyle = "rgba(71, 85, 105, 0.4)";
+              ctx.lineWidth = 1.5;
+            }
+            ctx.stroke();
+          }
+        });
+      });
+
+      // 2. Draw Recommended FoF Links (Dashed Vibrant Pink)
+      recs.forEach(rec => {
+        if (nodePositions[activeProfile] && nodePositions[rec.name]) {
+          const posU = nodePositions[activeProfile];
+          const posR = nodePositions[rec.name];
+
+          ctx.beginPath();
+          ctx.setLineDash([6, 5]);
+          ctx.moveTo(posU.x, posU.y);
+          ctx.lineTo(posR.x, posR.y);
+          ctx.strokeStyle = "rgba(236, 72, 153, 0.85)"; // Pink
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          ctx.setLineDash([]); // reset dash
+        }
+      });
+
+      // 3. Draw Nodes (Blue + Pink + Yellow)
+      users.forEach(u => {
+        const pos = nodePositions[u];
+        if (!pos) return;
+
+        const isActive = (u === activeProfile);
+        const isDirect = directFriends.has(u);
+        const isRec = recNames.has(u);
+
+        // Glow Halo Ring
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, pos.radius + (isActive ? 7 : 4), 0, Math.PI * 2);
+
+        if (isActive) {
+          ctx.fillStyle = "rgba(250, 204, 21, 0.35)"; // Yellow glow
+          ctx.fill();
+        } else if (isDirect) {
+          ctx.fillStyle = "rgba(10, 102, 194, 0.25)"; // Blue glow
+          ctx.fill();
+        } else if (isRec) {
+          ctx.fillStyle = "rgba(236, 72, 153, 0.25)"; // Pink glow
+          ctx.fill();
+        }
+
+        // Inner Circle Body
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, pos.radius, 0, Math.PI * 2);
+
+        if (isActive) {
+          ctx.fillStyle = "#facc15"; // Yellow
+        } else if (isDirect) {
+          ctx.fillStyle = "#0a66c2"; // LinkedIn Blue
+        } else if (isRec) {
+          ctx.fillStyle = "#ec4899"; // Pink
+        } else {
+          ctx.fillStyle = "#1e293b"; // Slate
+        }
+        ctx.fill();
+
+        // Border Outline
+        ctx.lineWidth = isActive ? 3 : 2;
+        ctx.strokeStyle = isActive ? "#ffffff" : (isDirect ? "#38bdf8" : (isRec ? "#f472b6" : "#64748b"));
+        ctx.stroke();
+
+        // Name Text
+        ctx.fillStyle = isActive ? "#0f172a" : "#ffffff";
+        ctx.font = `700 ${isActive ? '12px' : '11px'} Plus Jakarta Sans, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(u, pos.x, pos.y - 2);
+
+        // Subtext Degree Badge
+        ctx.font = `600 9px JetBrains Mono, monospace`;
+        ctx.fillStyle = isActive ? "#713f12" : "#cbd5e1";
+        const deg = network.getDegree(u);
+        ctx.fillText(`d=${deg}`, pos.x, pos.y + 11);
+      });
+    }
+
+    // Canvas Interactivity (Drag & Click)
+    function getCanvasCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: e.clientX - rect.x,
+        y: e.clientY - rect.y
+      };
+    }
+
+    function findNodeAt(x, y) {
+      for (const [u, pos] of Object.entries(nodePositions)) {
+        const dx = pos.x - x;
+        const dy = pos.y - y;
+        if (Math.sqrt(dx * dx + dy * dy) <= pos.radius + 6) {
+          return u;
+        }
+      }
+      return null;
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      const { x, y } = getCanvasCoords(e);
+      const clicked = findNodeAt(x, y);
+      if (clicked) {
+        draggedNode = clicked;
+        openNodePopup(clicked, x, y);
+      } else {
+        closeNodePopup();
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (draggedNode && nodePositions[draggedNode]) {
+        const { x, y } = getCanvasCoords(e);
+        nodePositions[draggedNode].x = x;
+        nodePositions[draggedNode].y = y;
+        drawGraph();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      draggedNode = null;
+    });
+
+    // Mobile / Touch support
+    canvas.addEventListener('touchstart', (e) => {
+      if (!e.touches.length) return;
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const x = touch.clientX - rect.x;
+      const y = touch.clientY - rect.y;
+      const clicked = findNodeAt(x, y);
+      if (clicked) {
+        draggedNode = clicked;
+        openNodePopup(clicked, x, y);
+      }
+    });
+
+    window.addEventListener('touchmove', (e) => {
+      if (draggedNode && e.touches.length && nodePositions[draggedNode]) {
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        nodePositions[draggedNode].x = touch.clientX - rect.x;
+        nodePositions[draggedNode].y = touch.clientY - rect.y;
+        drawGraph();
+      }
+    });
+
+    window.addEventListener('touchend', () => {
+      draggedNode = null;
+    });
+
+    // Resize event
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      drawGraph();
+    });
+
+    // Initial load
+    window.addEventListener('load', () => {
+      resizeCanvas();
+      realignGraph();
+      refreshUI();
+    });
+    setTimeout(() => {
+      resizeCanvas();
+      realignGraph();
+      refreshUI();
+    }, 100);
+
+  </script>
+</body>
+</html>
